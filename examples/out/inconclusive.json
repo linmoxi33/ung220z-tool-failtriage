@@ -1,0 +1,30 @@
+{
+  "device": {},
+  "input": {
+    "bytes": 238,
+    "log_lines": 0,
+    "non_log_lines": 4,
+    "path": "examples/in/inconclusive.log",
+    "sha256": "a66f95921392fc97fbea06a4a7b4be88771a49411f14f2ceb851193f55c90893"
+  },
+  "root_causes": [],
+  "scope": {
+    "declared": "UNG220Z（九联 / Unionman 中国移动光猫）",
+    "in_scope": false,
+    "verdict": "unknown"
+  },
+  "signals": [],
+  "summary": {
+    "in_scope": false,
+    "next_action": "重跑脚本并保留完整日志（脚本会把日志落盘为 ung220z_*.log），再对本工具运行一次。",
+    "root_cause": "INCONCLUSIVE",
+    "root_cause_count": 0,
+    "severity": "warning",
+    "signals_detected": [],
+    "title": "日志里没有决定性的成败信号",
+    "verdict": "unknown",
+    "verdict_text": "无法从该日志判定是否在声明范围内"
+  },
+  "tool": "ung220z-tool-failtriage",
+  "version": "1.0.0"
+}

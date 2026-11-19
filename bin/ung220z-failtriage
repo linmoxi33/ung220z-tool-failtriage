@@ -1,0 +1,422 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""ung220z-tool-failtriage — failure-mode attribution for ung220z-tool session logs.
+
+Upstream: https://github.com/Hut-hzf/ung220z-tool
+
+ung220z-tool prints one generic warning ("23 端口未开放（密码可能已轮换，重跑脚本）")
+no matter whether the real cause is a missing .gch CGI path (HTTP 4xx/5xx), an
+unexpected response body, a still-closed Telnet port, a Telnet password that
+differs from the Web password, or a failed config decrypt.
+
+This tool parses the *same* session log offline, reconstructs the causal chain,
+attributes the primary root cause with witness line numbers, states whether the
+observed signals even fall inside the upstream's declared scope
+(UNG220Z / Unionman / China Mobile), and prints the next action that actually
+applies — instead of one message for five different failures.
+
+Zero third-party dependencies. Offline. Deterministic.
+"""
+
+import argparse
+import hashlib
+import json
+import os
+import re
+import sys
+
+VERSION = "1.0.0"
+
+LOG_RE = re.compile(r"^\[(\d{2}:\d{2}:\d{2})\]\s+(\S+)\s+(.*)$")
+
+# ── signal detectors ────────────────────────────────────────────────────────
+# Each detector returns a dict: {"id", "severity", "detail"} or None.
+# `line` and `text` are attached by the caller.
+
+def _det_web_unreachable(tag, msg):
+    if "网关不可达" in msg:
+        return {"id": "web_unreachable", "severity": "error", "detail": "日志报告网关不可达"}
+    m = re.search(r"TCP\s+80/\S+\s*→\s*(closed|timed out|refused)", msg)
+    if m:
+        return {"id": "web_unreachable", "severity": "error", "detail": "80 端口 %s" % m.group(1)}
+    return None
+
+
+def _det_gch_http_error(tag, msg):
+    m = re.search(r"telnet\.gch 请求失败:.*?HTTP Error (\d{3})", msg)
+    if m:
+        code = int(m.group(1))
+        return {"id": "gch_http_error", "severity": "error",
+                "detail": "HTTP %d" % code, "http_status": code}
+    return None
+
+
+def _det_gch_unexpected(tag, msg):
+    if tag != "HTTP":
+        return None
+    m = re.search(r"telnet\.gch\s*→\s*(.*)$", msg)
+    if not m:
+        return None
+    body = m.group(1).strip()
+    if body == "TelnetSet Success!":
+        return None
+    return {"id": "gch_unexpected_response", "severity": "error",
+            "detail": ("空响应" if body in ("", "空响应") else "非 Success 响应体：%s" % body[:80])}
+
+
+def _det_gch_success(tag, msg):
+    if tag == "HTTP" and "telnet.gch → TelnetSet Success!" in msg:
+        return {"id": "gch_success", "severity": "info", "detail": "telnet.gch 返回 Success"}
+    return None
+
+
+def _det_port23_closed(tag, msg):
+    m = re.search(r"nc -zv \S+ 23\s*→\s*(timed out|closed|refused)", msg)
+    if m:
+        return {"id": "port23_closed", "severity": "error", "detail": "23 端口 %s" % m.group(1)}
+    if "23 端口未开放" in msg:
+        return {"id": "port23_closed", "severity": "error", "detail": "通用告警：23 端口未开放"}
+    return None
+
+
+def _det_telnet_auth_refused(tag, msg):
+    if tag != "AUTH":
+        return None
+    m = re.search(r"Telnet\s+(\S+)\s*/\s*(\S+)\s*→\s*refused", msg)
+    if m:
+        return {"id": "telnet_auth_refused", "severity": "error",
+                "detail": "Telnet 用户 %s 口令被拒" % m.group(1)}
+    m = re.search(r"Telnet 用户名 (\S+) 不可用", msg)
+    if m:
+        return {"id": "telnet_auth_refused", "severity": "error",
+                "detail": "Telnet 用户名 %s 不可用" % m.group(1)}
+    if "Telnet 登录失败" in msg:
+        return {"id": "telnet_auth_refused", "severity": "error",
+                "detail": "Telnet 登录失败（未说明用户名还是口令）"}
+    return None
+
+
+def _det_decrypt_failed(tag, msg):
+    if "配置解密失败" in msg:
+        return {"id": "cfg_decrypt_failed", "severity": "error",
+                "detail": "sidbg 解密后目标文件为空"}
+    return None
+
+
+def _det_success(tag, msg):
+    if "完成。口令每 15 分钟轮换" in msg or "凭据汇总" in msg:
+        return {"id": "success", "severity": "ok", "detail": "提取流程完成"}
+    return None
+
+
+DETECTORS = (
+    _det_web_unreachable,
+    _det_gch_http_error,
+    _det_gch_unexpected,
+    _det_gch_success,
+    _det_port23_closed,
+    _det_telnet_auth_refused,
+    _det_decrypt_failed,
+    _det_success,
+)
+
+
+# ── root-cause catalogue ────────────────────────────────────────────────────
+# `precedence` is causal: a missing .gch CGI path means Telnet is never enabled,
+# so a later "port 23 closed" is a *consequence*, not an independent cause.
+ROOT_CAUSES = {
+    "WEB_UNREACHABLE": {
+        "precedence": 10, "severity": "error",
+        "title": "网关不可达（80 端口未开放）",
+        "why": "上游在 probe_port(ip, 80) 失败后直接 return 2，日志只有一句"
+               "「网关不可达，检查地址与网络」，不区分地址写错 / 设备没上电 / 不在同一网段。",
+        "next_action": "先确认光猫地址（常见 192.168.1.1）与本机在同一网段、设备已上电、"
+                       "浏览器能打开 http://<ip>/ ；再重跑脚本。",
+        "signals": ("web_unreachable",),
+        "verdict": "unknown",
+    },
+    "GCH_HTTP_ERROR": {
+        "precedence": 20, "severity": "error",
+        "title": "telnet.gch 返回 HTTP 4xx/5xx：该机型不存在这条 .gch CGI 路径",
+        "why": "上游 enable_telnet() 只检查响应体里有没有 \"Success\" 子串；4xx/5xx 与空响应"
+               "都折叠成同一句「telnet.gch 请求失败」并继续往下走，最终只报「23 端口未开放」。",
+        "next_action": "这台设备大概率不是 README 声明的 UNG220Z / 九联 / Unionman 中国移动"
+                       " .gch 框架（或固件已改版）。不要再反复重跑同一脚本；换对应机型的提取方式。",
+        "signals": ("gch_http_error",),
+        "verdict": "out_of_scope_model",
+    },
+    "GCH_UNEXPECTED_RESPONSE": {
+        "precedence": 25, "severity": "error",
+        "title": "telnet.gch 返回了非 Success 的响应体",
+        "why": "上游把任何不含 \"Success\" 的响应体都当成失败，但只截前 60 字符打印，"
+               "不区分「登录页 / JS 片段 / 404 页 / 空响应」，也不记录状态码。",
+        "next_action": "把日志里的「telnet.gch →」整段响应体拿出来人工看；若像 HTML/JS 而不是"
+                       " TelnetSet，说明该机型走的是别的启用入口，属于机型不匹配。",
+        "signals": ("gch_unexpected_response",),
+        "verdict": "out_of_scope_model",
+    },
+    "TELNET_PORT_CLOSED": {
+        "precedence": 40, "severity": "error",
+        "title": "23 端口未开放：Telnet 未启用，或启用后被轮换关闭",
+        "why": "上游把「telnet.gch 失败」与「23 端口没开」合并成同一句告警并 return 3，"
+               "用户无法区分是没启用、还是密码已轮换，只能盲目重跑。",
+        "next_action": "先看同一份日志里 telnet.gch 是否返回过 TelnetSet Success!："
+                       "若没有，先解决 .gch 启用；若已 Success 而 23 仍关闭，用 --unlock "
+                       "或在设备管理页手动开启 Telnet。",
+        "signals": ("port23_closed",),
+        "verdict": "in_scope_telnet_disabled",
+    },
+    "TELNET_AUTH_REFUSED": {
+        "precedence": 50, "severity": "error",
+        "title": "Telnet 登录被拒：Telnet 口令与 Web 口令不同",
+        "why": "上游 Telnet.login() 失败只打「Telnet 登录失败，终止」，不说明是用户名不可用"
+               "还是口令不对；issue #3 里用户正是卡在「Telnet CMCCAdmin / ... → refused」。",
+        "next_action": "用 --telnet-password 显式指定 Telnet 专用口令（部分机型与背面贴纸的"
+                       " Web 口令不同），或用 --telnet-user 换用户名。",
+        "signals": ("telnet_auth_refused",),
+        "verdict": "in_scope_credential_mismatch",
+    },
+    "CFG_DECRYPT_FAILED": {
+        "precedence": 60, "severity": "error",
+        "title": "配置库解密失败",
+        "why": "上游只在 ls 目标文件为空时报「配置解密失败」，不保留 sidbg 的原始输出，"
+               "无法判断是路径变了、命令不存在、还是权限不足。",
+        "next_action": "在 root shell 里手动执行 sidbg 1 DB decry /userconfig/cfg/db_user_cfg.xml "
+                       "并查看报错；确认该机型的配置库路径是否仍是 db_user_cfg.xml。",
+        "signals": ("cfg_decrypt_failed",),
+        "verdict": "unknown",
+    },
+    "SUCCESS": {
+        "precedence": 90, "severity": "ok",
+        "title": "凭据提取完成",
+        "why": "日志出现完成标记（凭据汇总 / 完成。口令每 15 分钟轮换）。",
+        "next_action": "无需处理。口令每 15 分钟轮换，需要新值时重跑脚本。",
+        "signals": ("success",),
+        "verdict": "in_scope_ok",
+    },
+    "INCONCLUSIVE": {
+        "precedence": 99, "severity": "warning",
+        "title": "日志里没有决定性的成败信号",
+        "why": "日志不完整、被截断，或只贴了交互提示而没有 [HH:MM:SS] TAG 行。",
+        "next_action": "重跑脚本并保留完整日志（脚本会把日志落盘为 ung220z_*.log），"
+                       "再对本工具运行一次。",
+        "signals": (),
+        "verdict": "unknown",
+    },
+}
+
+SCOPE_DECLARED = "UNG220Z（九联 / Unionman 中国移动光猫）"
+
+VERDICT_TEXT = {
+    "in_scope_ok": "在声明范围内，且已成功",
+    "in_scope_credential_mismatch": "在声明范围内：设备对得上，是 Telnet 口令与 Web 口令不一致",
+    "in_scope_telnet_disabled": "在声明范围内：设备对得上，但 Telnet 未启用/已关闭",
+    "out_of_scope_model": "不在声明范围内：.gch CGI 路径不存在或返回非预期内容，机型/固件不匹配",
+    "unknown": "无法从该日志判定是否在声明范围内",
+}
+
+
+# ── parsing ────────────────────────────────────────────────────────────────
+def parse_lines(text):
+    """Return (entries, skipped) where entries = [{line, ts, tag, msg}]."""
+    entries, skipped = [], 0
+    for idx, raw in enumerate(text.splitlines(), 1):
+        m = LOG_RE.match(raw)
+        if not m:
+            if raw.strip():
+                skipped += 1
+            continue
+        entries.append({"line": idx, "ts": m.group(1), "tag": m.group(2), "msg": m.group(3)})
+    return entries, skipped
+
+
+def extract_signals(entries):
+    signals = []
+    for e in entries:
+        for det in DETECTORS:
+            hit = det(e["tag"], e["msg"])
+            if hit:
+                hit = dict(hit)
+                hit["line"] = e["line"]
+                hit["text"] = "[%s] %s %s" % (e["ts"], e["tag"], e["msg"])
+                signals.append(hit)
+                break  # one signal per log line
+    return signals
+
+
+def detect_device(text):
+    dev = {}
+    m = re.search(r"硬件型号\s*[|｜]\s*([^\s|｜]+)", text)
+    if m:
+        dev["model"] = m.group(1)
+    m = re.search(r"(?:固件版本|软件版本号)\s*[|｜]\s*([^\s|｜]+)", text)
+    if m:
+        dev["firmware"] = m.group(1)
+    return dev
+
+
+def rank_root_causes(signals):
+    present = {s["id"] for s in signals}
+    hits = []
+    for code, meta in ROOT_CAUSES.items():
+        if meta["signals"] and all(sid in present for sid in meta["signals"]):
+            hits.append((meta["precedence"], code, meta))
+    hits.sort(key=lambda x: x[0])
+    ranked = []
+    for rank, (_, code, meta) in enumerate(hits, 1):
+        wit = sorted({s["line"] for s in signals if s["id"] in meta["signals"]})
+        ranked.append({
+            "rank": rank,
+            "code": code,
+            "severity": meta["severity"],
+            "title": meta["title"],
+            "why": meta["why"],
+            "next_action": meta["next_action"],
+            "witness_lines": wit,
+            "verdict": meta["verdict"],
+        })
+    return ranked
+
+
+# ── report ─────────────────────────────────────────────────────────────────
+def build_report(text, source_path):
+    entries, skipped = parse_lines(text)
+    signals = extract_signals(entries)
+    device = detect_device(text)
+    ranked = rank_root_causes(signals)
+
+    if ranked:
+        primary = ranked[0]
+    else:
+        primary = {
+            "rank": 1,
+            "code": "INCONCLUSIVE",
+            "severity": ROOT_CAUSES["INCONCLUSIVE"]["severity"],
+            "title": ROOT_CAUSES["INCONCLUSIVE"]["title"],
+            "why": ROOT_CAUSES["INCONCLUSIVE"]["why"],
+            "next_action": ROOT_CAUSES["INCONCLUSIVE"]["next_action"],
+            "witness_lines": [],
+            "verdict": "unknown",
+        }
+
+    verdict = primary["verdict"]
+    return {
+        "tool": "ung220z-tool-failtriage",
+        "version": VERSION,
+        "input": {
+            "path": source_path,
+            "bytes": len(text.encode("utf-8")),
+            "sha256": hashlib.sha256(text.encode("utf-8")).hexdigest(),
+            "log_lines": len(entries),
+            "non_log_lines": skipped,
+        },
+        "summary": {
+            "root_cause": primary["code"],
+            "severity": primary["severity"],
+            "verdict": verdict,
+            "verdict_text": VERDICT_TEXT[verdict],
+            "title": primary["title"],
+            "next_action": primary["next_action"],
+            "signals_detected": sorted({s["id"] for s in signals}),
+            "root_cause_count": len(ranked),
+            "in_scope": verdict.startswith("in_scope"),
+        },
+        "root_causes": ranked,
+        "signals": [
+            {"id": s["id"], "severity": s["severity"], "line": s["line"],
+             "detail": s.get("detail", ""), "text": s["text"]}
+            for s in signals
+        ],
+        "device": device,
+        "scope": {"declared": SCOPE_DECLARED, "verdict": verdict,
+                  "in_scope": verdict.startswith("in_scope")},
+    }
+
+
+# ── output ─────────────────────────────────────────────────────────────────
+SEV_ORDER = {"error": 0, "warning": 1, "ok": 2}
+
+
+def render_human(rep):
+    s = rep["summary"]
+    out = []
+    out.append("ung220z-tool-failtriage v%s" % rep["version"])
+    out.append("输入: %s (%d 行日志, %d 行非日志, sha256=%s)"
+               % (rep["input"]["path"] or "<stdin>", rep["input"]["log_lines"],
+                  rep["input"]["non_log_lines"], rep["input"]["sha256"][:16]))
+    if rep["device"]:
+        out.append("设备: 型号=%s 固件=%s" % (rep["device"].get("model", "?"),
+                                              rep["device"].get("firmware", "?")))
+    out.append("")
+    out.append("根因 : %s (severity=%s)" % (s["root_cause"], s["severity"]))
+    out.append("结论 : %s" % s["title"])
+    out.append("范围 : %s" % s["verdict_text"])
+    out.append("下一步: %s" % s["next_action"])
+    if len(rep["root_causes"]) > 1:
+        out.append("")
+        out.append("完整归因链（按因果先后）:")
+        for rc in rep["root_causes"]:
+            out.append("  %d. %-26s lines=%s" % (rc["rank"], rc["code"], rc["witness_lines"]))
+    out.append("")
+    out.append("命中的原始日志行:")
+    if not rep["signals"]:
+        out.append("  （无）")
+    for sg in rep["signals"]:
+        out.append("  L%-4d %-24s %s" % (sg["line"], sg["id"], sg["text"][:110]))
+    return "\n".join(out)
+
+
+def main(argv=None):
+    ap = argparse.ArgumentParser(
+        prog="ung220z-failtriage",
+        description="把 ung220z-tool 的同一份会话日志归因到具体失败模式（离线、零依赖）。")
+    ap.add_argument("-i", "--input", default=None,
+                    help="ung220z 会话日志；省略则从 stdin 读取（-i - 也读 stdin）")
+    ap.add_argument("--json", action="store_true", help="输出机器可读 JSON")
+    ap.add_argument("--fail-on", choices=("error", "warning", "never"), default="error",
+                    help="退出码阈值：error=检出 error 才 1（默认）；warning=warning 也 1；never=永不以问题退出")
+    ap.add_argument("--expect-model", default=None,
+                    help="可选的期望机型（如 UNG220Z）；命中 device.model 时在 JSON 里标 model_matches")
+    ap.add_argument("--version", action="version", version="%(prog)s " + VERSION)
+    a = ap.parse_args(argv)
+
+    if a.input and a.input != "-":
+        path = a.input
+        try:
+            with open(path, "r", encoding="utf-8", errors="replace") as f:
+                text = f.read()
+        except OSError as e:
+            sys.stderr.write("ung220z-failtriage: 无法读取输入 %s: %s\n" % (path, e))
+            return 2
+    else:
+        path = None
+        try:
+            text = sys.stdin.read()
+        except Exception:
+            text = ""
+
+    if not text.strip():
+        sys.stderr.write("ung220z-failtriage: 输入为空；请用 -i <log> 或从 stdin 提供日志\n")
+        return 2
+
+    rep = build_report(text, path)
+
+    if a.expect_model:
+        got = rep["device"].get("model")
+        rep["summary"]["model_matches"] = (got == a.expect_model) if got else None
+
+    if a.json:
+        print(json.dumps(rep, ensure_ascii=False, indent=2, sort_keys=True))
+    else:
+        print(render_human(rep))
+
+    sev = rep["summary"]["severity"]
+    if a.fail_on == "never":
+        return 0
+    if a.fail_on == "warning":
+        return 1 if SEV_ORDER.get(sev, 2) <= 1 else 0
+    return 1 if sev == "error" else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

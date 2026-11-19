@@ -1,0 +1,100 @@
+{
+  "device": {
+    "firmware": "V1A0.A04.01",
+    "model": "GM232"
+  },
+  "input": {
+    "bytes": 806,
+    "log_lines": 11,
+    "non_log_lines": 1,
+    "path": "examples/in/gch-404.log",
+    "sha256": "39fc5c704a3686d13ac82acad1f01b1327eac431c146b0efedb0c117a9726306"
+  },
+  "root_causes": [
+    {
+      "code": "GCH_HTTP_ERROR",
+      "next_action": "这台设备大概率不是 README 声明的 UNG220Z / 九联 / Unionman 中国移动 .gch 框架（或固件已改版）。不要再反复重跑同一脚本；换对应机型的提取方式。",
+      "rank": 1,
+      "severity": "error",
+      "title": "telnet.gch 返回 HTTP 4xx/5xx：该机型不存在这条 .gch CGI 路径",
+      "verdict": "out_of_scope_model",
+      "why": "上游 enable_telnet() 只检查响应体里有没有 \"Success\" 子串；4xx/5xx 与空响应都折叠成同一句「telnet.gch 请求失败」并继续往下走，最终只报「23 端口未开放」。",
+      "witness_lines": [
+        7,
+        8,
+        9
+      ]
+    },
+    {
+      "code": "TELNET_PORT_CLOSED",
+      "next_action": "先看同一份日志里 telnet.gch 是否返回过 TelnetSet Success!：若没有，先解决 .gch 启用；若已 Success 而 23 仍关闭，用 --unlock 或在设备管理页手动开启 Telnet。",
+      "rank": 2,
+      "severity": "error",
+      "title": "23 端口未开放：Telnet 未启用，或启用后被轮换关闭",
+      "verdict": "in_scope_telnet_disabled",
+      "why": "上游把「telnet.gch 失败」与「23 端口没开」合并成同一句告警并 return 3，用户无法区分是没启用、还是密码已轮换，只能盲目重跑。",
+      "witness_lines": [
+        10,
+        11
+      ]
+    }
+  ],
+  "scope": {
+    "declared": "UNG220Z（九联 / Unionman 中国移动光猫）",
+    "in_scope": false,
+    "verdict": "out_of_scope_model"
+  },
+  "signals": [
+    {
+      "detail": "HTTP 404",
+      "id": "gch_http_error",
+      "line": 7,
+      "severity": "error",
+      "text": "[09:06:30] WARN telnet.gch 请求失败: HTTP Error 404: Not Found"
+    },
+    {
+      "detail": "HTTP 404",
+      "id": "gch_http_error",
+      "line": 8,
+      "severity": "error",
+      "text": "[09:06:30] WARN telnet.gch 请求失败: HTTP Error 404: Not Found"
+    },
+    {
+      "detail": "HTTP 400",
+      "id": "gch_http_error",
+      "line": 9,
+      "severity": "error",
+      "text": "[09:06:30] WARN telnet.gch 请求失败: HTTP Error 400: Bad Request"
+    },
+    {
+      "detail": "23 端口 timed out",
+      "id": "port23_closed",
+      "line": 10,
+      "severity": "error",
+      "text": "[09:06:30] PROBE nc -zv 192.168.1.1 23 → timed out"
+    },
+    {
+      "detail": "通用告警：23 端口未开放",
+      "id": "port23_closed",
+      "line": 11,
+      "severity": "error",
+      "text": "[09:06:30] WARN 23 端口未开放（密码可能已轮换，重跑脚本）"
+    }
+  ],
+  "summary": {
+    "in_scope": false,
+    "next_action": "这台设备大概率不是 README 声明的 UNG220Z / 九联 / Unionman 中国移动 .gch 框架（或固件已改版）。不要再反复重跑同一脚本；换对应机型的提取方式。",
+    "root_cause": "GCH_HTTP_ERROR",
+    "root_cause_count": 2,
+    "severity": "error",
+    "signals_detected": [
+      "gch_http_error",
+      "port23_closed"
+    ],
+    "title": "telnet.gch 返回 HTTP 4xx/5xx：该机型不存在这条 .gch CGI 路径",
+    "verdict": "out_of_scope_model",
+    "verdict_text": "不在声明范围内：.gch CGI 路径不存在或返回非预期内容，机型/固件不匹配"
+  },
+  "tool": "ung220z-tool-failtriage",
+  "version": "1.0.0"
+}

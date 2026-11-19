@@ -1,0 +1,6 @@
+[10:41:10] INFO   会话开始  目标=192.168.1.1  账户=user
+[10:41:10] PROBE  TCP 80/192.168.1.1 → open
+[10:41:11] HTTP   telnet.gch → TelnetSet Success!
+[10:41:11] PROBE  nc -zv 192.168.1.1 23 → succeeded
+[10:41:12] AUTH   Telnet CMCCAdmin / <pw> → 登录成功（root）
+[10:41:14] WARN   配置解密失败

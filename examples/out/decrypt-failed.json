@@ -1,0 +1,61 @@
+{
+  "device": {},
+  "input": {
+    "bytes": 322,
+    "log_lines": 6,
+    "non_log_lines": 0,
+    "path": "examples/in/decrypt-failed.log",
+    "sha256": "b496037dda5e878e24e84a74e27e540ccf9aceaa58f31686ddb30ed2637f5556"
+  },
+  "root_causes": [
+    {
+      "code": "CFG_DECRYPT_FAILED",
+      "next_action": "在 root shell 里手动执行 sidbg 1 DB decry /userconfig/cfg/db_user_cfg.xml 并查看报错；确认该机型的配置库路径是否仍是 db_user_cfg.xml。",
+      "rank": 1,
+      "severity": "error",
+      "title": "配置库解密失败",
+      "verdict": "unknown",
+      "why": "上游只在 ls 目标文件为空时报「配置解密失败」，不保留 sidbg 的原始输出，无法判断是路径变了、命令不存在、还是权限不足。",
+      "witness_lines": [
+        6
+      ]
+    }
+  ],
+  "scope": {
+    "declared": "UNG220Z（九联 / Unionman 中国移动光猫）",
+    "in_scope": false,
+    "verdict": "unknown"
+  },
+  "signals": [
+    {
+      "detail": "telnet.gch 返回 Success",
+      "id": "gch_success",
+      "line": 3,
+      "severity": "info",
+      "text": "[10:41:11] HTTP telnet.gch → TelnetSet Success!"
+    },
+    {
+      "detail": "sidbg 解密后目标文件为空",
+      "id": "cfg_decrypt_failed",
+      "line": 6,
+      "severity": "error",
+      "text": "[10:41:14] WARN 配置解密失败"
+    }
+  ],
+  "summary": {
+    "in_scope": false,
+    "next_action": "在 root shell 里手动执行 sidbg 1 DB decry /userconfig/cfg/db_user_cfg.xml 并查看报错；确认该机型的配置库路径是否仍是 db_user_cfg.xml。",
+    "root_cause": "CFG_DECRYPT_FAILED",
+    "root_cause_count": 1,
+    "severity": "error",
+    "signals_detected": [
+      "cfg_decrypt_failed",
+      "gch_success"
+    ],
+    "title": "配置库解密失败",
+    "verdict": "unknown",
+    "verdict_text": "无法从该日志判定是否在声明范围内"
+  },
+  "tool": "ung220z-tool-failtriage",
+  "version": "1.0.0"
+}

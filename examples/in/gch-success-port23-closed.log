@@ -1,0 +1,8 @@
+[18:22:01] INFO   会话开始  目标=192.168.1.1  账户=user
+[18:22:01] INFO   日志文件 /tmp/ung220z_20261118_182201.log
+[18:22:01] PROBE  TCP 80/192.168.1.1 → open
+[18:22:01] INFO   释放残留 Web 会话 → ok
+[18:22:01] INFO   补全 URL: http://192.168.1.1/usr=user&psw=***&cmd=1&telnet.gch
+[18:22:02] HTTP   telnet.gch → TelnetSet Success!
+[18:22:02] PROBE  nc -zv 192.168.1.1 23 → timed out
+[18:22:04] WARN   23 端口未开放（密码可能已轮换，重跑脚本）

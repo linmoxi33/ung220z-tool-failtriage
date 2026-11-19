@@ -1,0 +1,61 @@
+{
+  "device": {},
+  "input": {
+    "bytes": 649,
+    "log_lines": 10,
+    "non_log_lines": 0,
+    "path": "examples/in/telnet-auth-refused.log",
+    "sha256": "ade3c51b8a68b9a09804a4934744542a75ad7c050c12b111a4a26135edaa3613"
+  },
+  "root_causes": [
+    {
+      "code": "TELNET_AUTH_REFUSED",
+      "next_action": "用 --telnet-password 显式指定 Telnet 专用口令（部分机型与背面贴纸的 Web 口令不同），或用 --telnet-user 换用户名。",
+      "rank": 1,
+      "severity": "error",
+      "title": "Telnet 登录被拒：Telnet 口令与 Web 口令不同",
+      "verdict": "in_scope_credential_mismatch",
+      "why": "上游 Telnet.login() 失败只打「Telnet 登录失败，终止」，不说明是用户名不可用还是口令不对；issue #3 里用户正是卡在「Telnet CMCCAdmin / ... → refused」。",
+      "witness_lines": [
+        9
+      ]
+    }
+  ],
+  "scope": {
+    "declared": "UNG220Z（九联 / Unionman 中国移动光猫）",
+    "in_scope": true,
+    "verdict": "in_scope_credential_mismatch"
+  },
+  "signals": [
+    {
+      "detail": "telnet.gch 返回 Success",
+      "id": "gch_success",
+      "line": 7,
+      "severity": "info",
+      "text": "[12:10:00] HTTP telnet.gch → TelnetSet Success!"
+    },
+    {
+      "detail": "Telnet 用户 CMCCAdmin 口令被拒",
+      "id": "telnet_auth_refused",
+      "line": 9,
+      "severity": "error",
+      "text": "[12:10:00] AUTH Telnet CMCCAdmin / fr3k77ct → refused"
+    }
+  ],
+  "summary": {
+    "in_scope": true,
+    "next_action": "用 --telnet-password 显式指定 Telnet 专用口令（部分机型与背面贴纸的 Web 口令不同），或用 --telnet-user 换用户名。",
+    "root_cause": "TELNET_AUTH_REFUSED",
+    "root_cause_count": 1,
+    "severity": "error",
+    "signals_detected": [
+      "gch_success",
+      "telnet_auth_refused"
+    ],
+    "title": "Telnet 登录被拒：Telnet 口令与 Web 口令不同",
+    "verdict": "in_scope_credential_mismatch",
+    "verdict_text": "在声明范围内：设备对得上，是 Telnet 口令与 Web 口令不一致"
+  },
+  "tool": "ung220z-tool-failtriage",
+  "version": "1.0.0"
+}

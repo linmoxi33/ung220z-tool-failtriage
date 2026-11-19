@@ -1,0 +1,12 @@
+[21:59:20] INFO   会话开始  目标=192.168.1.1  账户=user
+[21:59:20] INFO   日志文件 D:\ung220z_20261117_215913.log
+[21:59:20] PROBE  TCP 80/192.168.1.1 → open
+[21:59:20] INFO   释放残留 Web 会话 → skip
+[21:59:20] INFO   补全 URL: http://192.168.1.1/usr=user&psw=***&cmd=1&telnet.gch
+[21:59:20] HTTP   已发送给浏览器: http://192.168.1.1/usr=user&psw=*****&cmd=1&telnet.gch
+[21:59:20] WARN   telnet.gch 请求失败: HTTP Error 400: Bad Request
+[21:59:20] WARN   telnet.gch 请求失败: HTTP Error 400: Bad Request
+[21:59:20] HTTP   telnet.gch → function frmLoad() {
+                XHR.get("get_factory_mode", null, re
+[21:59:22] PROBE  nc -zv 192.168.1.1 23 → timed out
+[21:59:24] WARN   23 端口未开放（密码可能已轮换，重跑脚本）

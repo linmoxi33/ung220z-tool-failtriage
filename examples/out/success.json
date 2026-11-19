@@ -1,0 +1,61 @@
+{
+  "device": {},
+  "input": {
+    "bytes": 813,
+    "log_lines": 13,
+    "non_log_lines": 0,
+    "path": "examples/in/success.log",
+    "sha256": "5c0cc0f1263053e48d6e999c36b69f8e7a8eb9d67203b43ffe07e27d807f7f4a"
+  },
+  "root_causes": [
+    {
+      "code": "SUCCESS",
+      "next_action": "无需处理。口令每 15 分钟轮换，需要新值时重跑脚本。",
+      "rank": 1,
+      "severity": "ok",
+      "title": "凭据提取完成",
+      "verdict": "in_scope_ok",
+      "why": "日志出现完成标记（凭据汇总 / 完成。口令每 15 分钟轮换）。",
+      "witness_lines": [
+        13
+      ]
+    }
+  ],
+  "scope": {
+    "declared": "UNG220Z（九联 / Unionman 中国移动光猫）",
+    "in_scope": true,
+    "verdict": "in_scope_ok"
+  },
+  "signals": [
+    {
+      "detail": "telnet.gch 返回 Success",
+      "id": "gch_success",
+      "line": 6,
+      "severity": "info",
+      "text": "[09:06:30] HTTP telnet.gch → TelnetSet Success!"
+    },
+    {
+      "detail": "提取流程完成",
+      "id": "success",
+      "line": 13,
+      "severity": "ok",
+      "text": "[09:06:31] INFO 完成。口令每 15 分钟轮换，重跑本脚本即可取新值"
+    }
+  ],
+  "summary": {
+    "in_scope": true,
+    "next_action": "无需处理。口令每 15 分钟轮换，需要新值时重跑脚本。",
+    "root_cause": "SUCCESS",
+    "root_cause_count": 1,
+    "severity": "ok",
+    "signals_detected": [
+      "gch_success",
+      "success"
+    ],
+    "title": "凭据提取完成",
+    "verdict": "in_scope_ok",
+    "verdict_text": "在声明范围内，且已成功"
+  },
+  "tool": "ung220z-tool-failtriage",
+  "version": "1.0.0"
+}

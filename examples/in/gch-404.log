@@ -1,0 +1,12 @@
+[09:06:29] INFO   会话开始  目标=192.168.1.1  账户=user
+[09:06:29] INFO   日志文件 /ung220z-tool/ung220z_20261118_090608.log
+[09:06:29] PROBE  TCP 80/192.168.1.1 → open
+[09:06:29] INFO   释放残留 Web 会话 → ok
+[09:06:29] INFO   补全 URL: http://192.168.1.1/usr=user&psw=***&cmd=1&telnet.gch
+[09:06:30] HTTP   已发送给浏览器: http://192.168.1.1/usr=user&psw=eTmVWFf#&cmd=1&telnet.gch
+[09:06:30] WARN   telnet.gch 请求失败: HTTP Error 404: Not Found
+[09:06:30] WARN   telnet.gch 请求失败: HTTP Error 404: Not Found
+[09:06:30] WARN   telnet.gch 请求失败: HTTP Error 400: Bad Request
+[09:06:30] PROBE  nc -zv 192.168.1.1 23 → timed out
+[09:06:30] WARN   23 端口未开放（密码可能已轮换，重跑脚本）
+硬件型号 | GM232 | 固件版本 | V1A0.A04.01

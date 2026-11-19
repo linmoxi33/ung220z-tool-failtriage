@@ -1,0 +1,10 @@
+[12:09:59] INFO   会话开始  目标=192.168.1.1  账户=user
+[12:09:59] INFO   日志文件 D:\Data\Source\Open\Tools\ung220z-tool\ung220z_20261118_120959.log
+[12:09:59] PROBE  TCP 80/192.168.1.1 → open
+[12:10:00] INFO   释放残留 Web 会话 → ok
+[12:10:00] INFO   补全 URL: http://192.168.1.1/usr=user&psw=***&cmd=1&telnet.gch
+[12:10:00] HTTP   已发送给浏览器: http://192.168.1.1/usr=user&psw=*******&cmd=1&telnet.gch
+[12:10:00] HTTP   telnet.gch → TelnetSet Success!
+[12:10:00] PROBE  nc -zv 192.168.1.1 23 → succeeded
+[12:10:00] AUTH   Telnet CMCCAdmin / fr3k77ct → refused
+[12:10:00] WARN   Telnet 登录失败，终止

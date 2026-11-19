@@ -1,0 +1,61 @@
+{
+  "device": {},
+  "input": {
+    "bytes": 234,
+    "log_lines": 4,
+    "non_log_lines": 0,
+    "path": "examples/in/web-unreachable.log",
+    "sha256": "19e2e44aecab447659106a3865373214407cb18d2f649b792c27bda340667464"
+  },
+  "root_causes": [
+    {
+      "code": "WEB_UNREACHABLE",
+      "next_action": "先确认光猫地址（常见 192.168.1.1）与本机在同一网段、设备已上电、浏览器能打开 http://<ip>/ ；再重跑脚本。",
+      "rank": 1,
+      "severity": "error",
+      "title": "网关不可达（80 端口未开放）",
+      "verdict": "unknown",
+      "why": "上游在 probe_port(ip, 80) 失败后直接 return 2，日志只有一句「网关不可达，检查地址与网络」，不区分地址写错 / 设备没上电 / 不在同一网段。",
+      "witness_lines": [
+        3,
+        4
+      ]
+    }
+  ],
+  "scope": {
+    "declared": "UNG220Z（九联 / Unionman 中国移动光猫）",
+    "in_scope": false,
+    "verdict": "unknown"
+  },
+  "signals": [
+    {
+      "detail": "80 端口 closed",
+      "id": "web_unreachable",
+      "line": 3,
+      "severity": "error",
+      "text": "[08:15:03] PROBE TCP 80/192.168.1.1 → closed"
+    },
+    {
+      "detail": "日志报告网关不可达",
+      "id": "web_unreachable",
+      "line": 4,
+      "severity": "error",
+      "text": "[08:15:03] WARN 网关不可达，检查地址与网络"
+    }
+  ],
+  "summary": {
+    "in_scope": false,
+    "next_action": "先确认光猫地址（常见 192.168.1.1）与本机在同一网段、设备已上电、浏览器能打开 http://<ip>/ ；再重跑脚本。",
+    "root_cause": "WEB_UNREACHABLE",
+    "root_cause_count": 1,
+    "severity": "error",
+    "signals_detected": [
+      "web_unreachable"
+    ],
+    "title": "网关不可达（80 端口未开放）",
+    "verdict": "unknown",
+    "verdict_text": "无法从该日志判定是否在声明范围内"
+  },
+  "tool": "ung220z-tool-failtriage",
+  "version": "1.0.0"
+}

@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+*.log
+!examples/in/*.log
+.venv/
+node_modules/
+vendor/
+*.zip
+*.tar.gz
+*.tgz
+*.7z
