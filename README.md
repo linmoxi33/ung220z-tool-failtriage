@@ -54,7 +54,8 @@ README 自己把适用范围限定在**单一机型 + 单一运营商**，却没
 无需安装，只需 Python 3.8+（只用标准库）：
 
 ```bash
-git clone <this-repo> && cd ung220z-tool-failtriage
+git clone https://github.com/linmoxi33/ung220z-tool-failtriage.git
+cd ung220z-tool-failtriage
 python3 bin/ung220z-failtriage -i examples/in/gch-400-port23-closed.log
 ```
 
@@ -102,6 +103,12 @@ cat examples/in/telnet-auth-refused.log | python3 bin/ung220z-failtriage --json
 | `2` | 用法或输入错误：参数非法、文件不可读、输入为空、日志不可解析 |
 
 `--fail-on error|warning|never` 控制阈值；`--expect-model UNG220Z` 会额外输出 `model_matches`。
+
+## 测试
+
+```bash
+python3 -m unittest discover -s tests -v   # 16 tests, stdlib only
+```
 
 ## 局限
 
